@@ -1,4 +1,6 @@
 import os
+import art
+from colorama import init, Fore
 import requests as rq
 from bs4 import BeautifulSoup
 
@@ -7,7 +9,12 @@ if os.name == 'nt':
 else:
     SAVE_PATH = os.path.join(os.path.expanduser('~'), 'downloads')
 
+init(convert=True)
+print(Fore.BLUE + art.text2art('YIFY Subtitles'))
+
+print(Fore.YELLOW)
 keyword = input('[+] Enter Movie Name: ').strip()
+print(Fore.RESET)
 
 # Search URL
 URL = f'https://yts-subs.com/search/ajax?mov={keyword}'
@@ -21,13 +28,15 @@ try:
         if search_result:
 
             # Display search result
-            print('\n[!] Search Result:')
+            print(Fore.CYAN + '\n[!] Search Result:')
             for ind,movie in enumerate(search_result, 1):
                 title = movie['mv_mainTitle']
                 print(f'\t{ind}.{title}')
 
             # User input a number from displayed movies
+            print(Fore.YELLOW)
             indx = int(input('\n[+] Enter Movie Number: ').strip()) - 1
+            print(Fore.RESET)
 
             movie_code : str = search_result[indx]['mv_imdbCode']
             movie_url = f'https://yts-subs.com/movie-imdb/{movie_code}'
@@ -37,7 +46,8 @@ try:
             if movie_response.status_code == 200:
 
                 subtitles, i = [], 1
-                print('\n[!] English Subtitles:')
+
+                print(Fore.CYAN + '\n[!] English Subtitles:' + Fore.RESET)
 
                 # Scraping Data From Page Source
                 soup1 = BeautifulSoup(movie_response.content, 'html.parser')
@@ -55,10 +65,12 @@ try:
                         sub_name = str(sub_name_tag.find('a').text).replace('subtitle', '').replace('\n', '')       
                         sub = (sub_name, sub_link)
                         subtitles.append(sub)
-                        print(f'\t{i}.{sub_name}')
+                        print(Fore.CYAN + f'\t{i}.{sub_name}' + Fore.RESET)
                         i += 1
 
+                print(Fore.YELLOW)
                 sub_no = int(input('\n[+] Enter Subtitle Number To Download: ').strip()) - 1
+                print(Fore.RESET)
                 selected_sub_link = subtitles[sub_no][1]
                 selected_sub_name = subtitles[sub_no][0]
 
@@ -78,22 +90,22 @@ try:
                             for byte in final_response.iter_content(chunk_size=128):
                                 sfile.write(byte)
 
-                        print('[!] Subtitle Downloaded. Check Downloads Directory\n')
+                        print(Fore.GREEN + '[!] Subtitle Downloaded. Check Downloads Directory\n' + Fore.RESET)
                     
                     else:
-                        print(f'Error : Status Code - {search_response.status_code}\n')
+                        print(Fore.RED + f'Error : Status Code - {search_response.status_code}\n' + Fore.RESET)
 
                 else:
-                    print(f'Error : Status Code - {search_response.status_code}\n')
+                    print(Fore.RED + f'Error : Status Code - {search_response.status_code}\n' + Fore.RESET)
                 
             else:
-                print(f'Error : Status Code - {search_response.status_code}\n')
+                print(Fore.RED + f'Error : Status Code - {search_response.status_code}\n' + Fore.RESET)
         
         else:
-            print('[!] Not Found.\n')
+            print(Fore.RED + '[!] Not Found.\n' + Fore.RESET)
 
     else:
-        print(f'Error : Status Code - {search_response.status_code}\n')
+        print(Fore.RED + f'Error : Status Code - {search_response.status_code}\n' + Fore.RESET)
 
 except Exception as e:
-    print(f'Error : {e}')
+    print(Fore.RED + f'Error : {e}' + Fore.RESET)
