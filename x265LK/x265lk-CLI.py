@@ -216,8 +216,9 @@ class x265LK:
         if r.status_code == 200:            
             ep_name = link.split('/')[-1]
             removed_site_name = ep_name.split('.')[3:]
-            removed_site_name = '.'.join(removed_site_name)            
-            filename = f'{path}\\{removed_site_name}'
+            removed_site_name = '.'.join(removed_site_name)
+            decoded_name = rq.utils.unquote(removed_site_name)           
+            filename = f'{path}\\{decoded_name}'
 
             epi_length = int(r.headers['content-length'])
             block_size: int = 1024
