@@ -29,7 +29,7 @@ class x265LK:
         print(Fore.RESET)
 
     
-    def search(self, term:str, type='TV') -> list:
+    def search(self, term:str, dtype='tvshows') -> list:
         search_url = f'{self.__URL}{term}&nonce=deec18d3b5'
 
         r = rq.get(search_url)
@@ -42,13 +42,92 @@ class x265LK:
                 return -1
 
             for id, v in search_result.items():
-                if 'tvshows' in v['url']:
+                if dtype in v['url']:
                     item = { 'id': id, 'title': v['title'], 'url': v['url'] }
                     query_data.append(item)
             return query_data
         
         return (-9, r.status_code)
 
+
+    def get_mode(self):
+        question =  {
+            'type': 'list',
+            'name': 'ui',
+            'message': 'Select Mode',
+            'choices': [
+                'TV Series',
+                'Movies',
+            ],
+            'filter': lambda val: val.lower()
+        }
+        answer = prompt(question, style=custom_style_2)['ui']
+        if answer[0] == 'T':
+            return 'tvshows'
+        
+        return 'movies'
+
+    
+    def get_movie_page_links(self, movie_data: dict) -> list:
+        r = rq.get(movie_data['url'])
+
+        if r.status_code == 200:
+            movie_copies = []
+            soup = BeautifulSoup(r.text, 'html.parser')
+            download_div = soup.find('div', {'id':'download'})
+            links_data = download_div.find('tbody').findAll('tr')
+            download_page_links = []
+            for i, row in enumerate(links_data, 1):
+                data = row.findAll('td')
+                link = data[0].a['href']
+                copy = data[1].strong.contents[0]                
+                size = data[3].text               
+                copy_data = { 'name': copy, 'url': link, 'size': size }
+                movie_copies.append(copy_data)
+
+            return movie_copies
+
+        return (-9, r.status_code)
+
+        
+    def select_copy(self, copy_list: list):
+
+        print(Fore.LIGHTYELLOW_EX + '[+] Select Copy:')
+        for i, copy in enumerate(copy_list, 1):
+            print(f"\t{i}. {copy['name']} - {copy['size']}")
+
+        print(Fore.RESET)
+        print('\n[+] Enter Copy Number. Or')       
+        print('[+] Enter -2 To Go Back')
+        print('[+] Enter -9 To Exit')
+        question = {
+            'type': 'input',
+            'name': 'epi_no',
+            'message': 'Enter Copy Number:',
+            'validate': lambda val: val in [*[str(x) for x in range(1, len(copy_list)+1)], '-2', '-9']
+        }
+
+        ans = prompt(question, style=custom_style_2)['epi_no'].strip()
+        copy_no = int(ans) - 1
+
+        if ans == '-9':
+            os.system('CLS')
+            exit()
+
+        elif ans == '-2':
+            return -2
+
+        copy = copy_list[copy_no]
+        r = rq.get(copy['url'])
+
+        if r.status_code == 200:
+            sp = BeautifulSoup(r.text, 'html.parser')
+            Link = sp.find('div', {'class':'inside'}).a['href']
+            print(Fore.LIGHTYELLOW_EX + f'\nLink: {Link}' + Fore.RESET)
+            return Link
+
+        return (-9, r.status_code)
+            
     
     def select_series(self, seriesList:list) -> dict:
         question = {
@@ -110,6 +189,9 @@ class x265LK:
                 season_number = prompt(question, style=custom_style_2)['season_no']
                 nums = season_number.split()
             
+            except KeyboardInterrupt:
+                exit()
+            
             except Exception as e:
                 self.display_title()
                 self.select_season(series)
@@ -167,7 +249,7 @@ class x265LK:
             'type': 'input',
             'name': 'epi_no',
             'message': 'Enter Episode Number:',
-            'validate': lambda val: all([v in [*[str(i) for i in range(len(episodesList)+1)], str(-1), str(-2)] for v in val.split()])
+            'validate': lambda val: all([v in [*[str(i) for i in range(len(episodesList)+1)], str(-1), str(-2), str(-9)] for v in val.split()])
         }
 
         epis = prompt(question, style=custom_style_2)['epi_no'].strip().split()
@@ -223,7 +305,7 @@ class x265LK:
             epi_length = int(r.headers['content-length'])
             block_size: int = 1024
 
-            print(Fore.CYAN+f'Downloading {removed_site_name}')
+            print(Fore.CYAN+f'Downloading {decoded_name}')
             bar = tqdm(total=epi_length, unit='iB', unit_scale=True)
 
             with open(filename, 'wb') as episode:
@@ -271,6 +353,14 @@ class x265LK:
 
 x265 = x265LK()
 series = dict()
+mode = ''
+
+def mode_select():
+    global mode
+    x265.display_title()
+    mode = x265.get_mode()
+    get_search()
+
 
 def get_search():
     question = {
@@ -281,7 +371,11 @@ def get_search():
     }
     x265.display_title()
     search_term: str = prompt(question, style=custom_style_2)['search_term']
-    search_result: list = x265.search(search_term)
+
+    if search_term == '-1':
+        mode_select()
+
+    search_result: list = x265.search(search_term, mode)
     
     if search_result == -1:
         print(Fore.LIGHTRED_EX + '[!] Nothing Found' + Fore.RESET)
@@ -308,14 +402,53 @@ def get_search():
 
 def get_season():
     x265.display_title()
-    season_no, series_name, dtype = x265.select_season(series)
-    
-    if season_no == -9:
-        print(Fore.LIGHTRED_EX + f'[!] Connection Error : {series_name}' + Fore.RESET)
-        input('Press Any Key To Exit...')
-        exit()
 
-    get_episode(season_no, series_name, dtype)
+    if mode == 'tvshows':
+        season_no, series_name, dtype = x265.select_season(series)
+        
+        if season_no == -9:
+            print(Fore.LIGHTRED_EX + f'[!] Connection Error : {series_name}' + Fore.RESET)
+            input('Press Any Key To Exit...')
+            exit()
+
+        get_episode(season_no, series_name, dtype)
+
+    else:
+        copies = x265.get_movie_page_links(series)
+        selected_link = x265.select_copy(copies)
+        
+        if selected_link == -2:
+            get_search()
+        
+        path = x265.get_save_path()
+        x265.download(selected_link, path)
+
+        question =  {
+            'type': 'list',
+            'name': 'ui',
+            'message': 'What to do next?',
+            'choices': [
+                'Download Another Episode',
+                'Mode Change',
+                'Change Season',
+                'Search TV Series',
+                'Exit'
+            ],
+            'filter': lambda val: val.lower()
+        }
+
+        answer = prompt(question, style=custom_style_2)['ui']
+        
+        if answer[0] == 'd':
+            get_episode(season_no, series_name, dtype)
+        elif answer[0] == 'c':
+            get_season()
+        elif answer[0] == 's':
+            get_search()
+        elif answer[0] == 'm':
+            mode_select()
+        else:
+            exit()
 
 
 def get_episode(season_no, series_name, dtype):
@@ -387,22 +520,25 @@ def get_episode(season_no, series_name, dtype):
         'message': 'What to do next?',
         'choices': [
             'Download Another Episode',
+            'Mode Change',
             'Change Season',
             'Search TV Series',
             'Exit'
         ],
         'filter': lambda val: val.lower()
     }
-    answer = prompt(question, style=custom_style_2)['name']
+    answer = prompt(question, style=custom_style_2)['ui']
     
     if answer[0] == 'd':
         get_episode(season_no, series_name, dtype)
     elif answer[0] == 'c':
         get_season()
+    elif answer[0] == 'm':
+        mode_select()
     elif answer[0] == 's':
         get_search()
     else:
         exit()
 
 
-get_search()
+mode_select()
